@@ -7,6 +7,7 @@ import httplib
 import RPi.GPIO as GPIO
 import serial
 import threading
+from RPIO import PWM
 
 usbip_server = "10.0.5.1"
 #stat_host = "10.0.5.19"
@@ -25,32 +26,27 @@ class DoorStates:
 
 door_state = DoorStates.Closed
 
-tmp_pos = 10.0
-closed_pos = 4.5
-aopen_pos = 8.0
-bopen_pos = 1.0
+tmp_pos = 1000
+closed_pos = 500
+aopen_pos = 900
+bopen_pos = 100
 interval = 0.5
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(18, GPIO.OUT)
-pwm = GPIO.PWM(18, 100)
+servo = PWM.Servo()
+servo_pin = 18
 
 def close_door():
     global door_state
     print "Close the door, my friend!"
     door_state = DoorStates.Closing
-    pwm.start(tmp_pos)
+    servo.set_servo(servo_pin, tmp_pos)
     time.sleep(interval)
-    pwm.ChangeDutyCycle(closed_pos)
-    time.sleep(interval)
-    pwm.ChangeDutyCycle(closed_pos)
-    time.sleep(interval)
+    servo.set_servo(servo_pin, closed_pos)
     door_state = DoorStates.Closed
-    pwm.stop()
 
 close_door()
 
-ser = serial.Serial(serial_port, serial_speed, timeout = 5)
+ser = serial.Serial(serial_port, serial_speed, timeout = 30)
 
 config = {}
 
@@ -115,11 +111,8 @@ def open_door(dispenser):
     else:
         cycle = bopen_pos
 
-    pwm.start(tmp_pos)
-    time.sleep(interval)
-    pwm.ChangeDutyCycle(cycle)
-    time.sleep(interval)
-    pwm.stop()
+    servo.set_servo(servo_pin, tmp_pos)
+    servo.set_servo(servo_pin, cycle)
 
     door_state = DoorStates.Open
     send_stats()
@@ -138,7 +131,10 @@ def read_weight():
     while ser.inWaiting() > 0:
         out += ser.read(1)
     print out
-    return int(out[:-5])
+    if (out != ""):
+        return int(out[:-5])
+    else:
+        return 0
 
 def read_tag():
     print "Writing to Arduino"
