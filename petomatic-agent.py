@@ -5,6 +5,7 @@ import usb.util
 import threading
 import json
 import httplib
+import RPi.GPIO as GPIO
 
 usbip_server = "10.0.5.1"
 stat_host = "10.0.5.19"
@@ -18,6 +19,11 @@ class DoorStates:
     Open, Closed, Opening, Closing = range(4)
 
 door_state = DoorStates.Closed
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(18, GPIO.OUT)
+pwm = GPIO.PWM(18, 100)
+pwm.start(0)
 
 def normalize(value):
     norm_value = value
@@ -47,7 +53,7 @@ def open_door():
     global door_state
     print "Open the door, my friend!"
     door_state = DoorStates.Opening
-    # XXX Send Signal to Arduino
+    pwm.ChangeDutyCycle(40)
     door_state = DoorStates.Open
     send_stats()
     return
@@ -56,7 +62,7 @@ def close_door():
     global door_state
     print "Close the door, my friend!"
     door_state = DoorStates.Closing
-    # XXX Send Signal to Arduino
+    pwm.ChangeDutyCycle(1)
     door_state = DoorStates.Closed
     send_stats()
     return
@@ -95,10 +101,11 @@ def sensor_worker():
         usleep(100)
 
 def main():
-    threads = []
-    t = threading.Thread(target=sensor_worker)
-    threads.append(t)
-    t.start()
+    sensor_worker()
+    #threads = []
+    #t = threading.Thread(target=sensor_worker)
+    #threads.append(t)
+    #t.start()
     #for t in threading.enumerate():
     #    t.join()
 
