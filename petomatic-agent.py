@@ -8,7 +8,8 @@ import RPi.GPIO as GPIO
 import serial
 
 usbip_server = "10.0.5.1"
-stat_host = "10.0.5.19"
+#stat_host = "10.0.5.19"
+stat_host = "128.107.33.219"
 stat_port = "8080"
 serial_port = "/dev/ttyACM0"
 serial_speed = 9600
@@ -55,7 +56,6 @@ def send_stats():
                     url = "/event",
                     body = json_string)
     print conn.getresponse()
-    print json_string
 
     return
 
