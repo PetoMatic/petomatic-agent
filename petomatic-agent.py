@@ -6,6 +6,7 @@ import json
 import httplib
 import RPi.GPIO as GPIO
 import serial
+import threading
 
 usbip_server = "10.0.5.1"
 #stat_host = "10.0.5.19"
@@ -51,16 +52,20 @@ def update_config():
     global config
     config = {}
 
+    print "Fetching configuration"
+
     conn = httplib.HTTPConnection(stat_host, port=stat_port, timeout=10)
     conn.request(method = "GET",
                     url = "/config")
     json_string = conn.getresponse()
-    print(json_string)
     data = json.load(json_string)
-    pets = {}
-    for pet in data['pets']:
-        pets[pet] = data[pet]
-    config['pets'] = pets
+    print json.dumps(data, separators=(',', ': '))
+    config['pets'] = data
+
+def config_worker():
+    while True:
+        update_config()
+        time.sleep(5)
 
 def send_stats():
     event = {}
@@ -179,7 +184,10 @@ def sensor_worker():
         usleep(100)
 
 def main():
+    t = threading.Thread(target=config_worker)
+    t.start()
     sensor_worker()
+    t.join()
 
 if __name__ == "__main__":
         main()
