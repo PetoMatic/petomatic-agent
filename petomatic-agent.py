@@ -133,12 +133,15 @@ def read_tag():
     print "Writing to Arduino"
     ser.write('t\r\n')
     time.sleep(1)
-    print "Writing to Arduino"
+    print "Reading from Arduino"
     out = ""
     while ser.inWaiting() > 0:
         out += ser.read(1)
     print "(" + out + ")"
-    return int(out)
+    if (out != ""):
+        return int(out)
+    else:
+        return 0
 
 def sensor_worker():
     print "Testing IR sensor"
@@ -167,7 +170,8 @@ def sensor_worker():
         if (checkdata > prox_threshold):
             if (door_state == DoorStates.Closed):
                 tag = read_tag()
-                open_door(tag)
+                if (tag):
+                    open_door(tag)
         else:
             if (door_state == DoorStates.Open):
                 close_door()
