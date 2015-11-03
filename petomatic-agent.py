@@ -2,14 +2,16 @@ import os
 import time
 import usb.core
 import usb.util
-import threading
 import json
 import httplib
 import RPi.GPIO as GPIO
+import serial
 
 usbip_server = "10.0.5.1"
 stat_host = "10.0.5.19"
 stat_port = "8080"
+serial_port = "/dev/ttyACM0"
+serial_speed = 9600
 
 prox_threshold = 600
 
@@ -25,6 +27,8 @@ GPIO.setup(18, GPIO.OUT)
 pwm = GPIO.PWM(18, 100)
 pwm.start(0)
 
+ser = serial.Serial(serial_port, serial_speed)
+
 def normalize(value):
     norm_value = value
     return int(norm_value)
@@ -37,7 +41,12 @@ def send_stats():
     else:
         event['event'] = 'doorClosed'
 
-    event['timestamp'] = time.time()
+    event['timestamp'] = int(time.time())
+
+    weight = read_weight();
+
+    if (weight):
+        event['weight'] = weight
 
     json_string = json.dumps(event, indent = 4)
 
@@ -46,6 +55,7 @@ def send_stats():
                     url = "/event",
                     body = json_string)
     print conn.getresponse()
+    print json_string
 
     return
 
@@ -66,6 +76,17 @@ def close_door():
     door_state = DoorStates.Closed
     send_stats()
     return
+
+def read_weight():
+    print "Writing to Arduino"
+    ser.write('w\r\n')
+    time.sleep(1)
+    print "Writing to Arduino"
+    out = ""
+    while ser.inWaiting() > 0:
+        out += ser.read(1)
+    print out
+    return int(out[:-5])
 
 def sensor_worker():
     print "Testing IR sensor"
@@ -93,6 +114,10 @@ def sensor_worker():
         print(logstring)
         if (checkdata > prox_threshold):
             if (door_state == DoorStates.Closed):
+                #ser.write('t\r\n')
+                #resp = ser.readline()
+                # XXX check who's trying to open
+                #print resp
                 open_door()
         else:
             if (door_state == DoorStates.Open):
@@ -102,12 +127,6 @@ def sensor_worker():
 
 def main():
     sensor_worker()
-    #threads = []
-    #t = threading.Thread(target=sensor_worker)
-    #threads.append(t)
-    #t.start()
-    #for t in threading.enumerate():
-    #    t.join()
 
 if __name__ == "__main__":
         main()
