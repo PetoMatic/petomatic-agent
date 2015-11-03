@@ -34,12 +34,23 @@ interval = 0.5
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(18, GPIO.OUT)
 pwm = GPIO.PWM(18, 100)
-pwm.start(tmp_pos)
-time.sleep(interval)
-pwm.ChangeDutyCycle(closed_pos)
-time.sleep(interval)
 
-ser = serial.Serial(serial_port, serial_speed)
+def close_door():
+    global door_state
+    print "Close the door, my friend!"
+    door_state = DoorStates.Closing
+    pwm.start(tmp_pos)
+    time.sleep(interval)
+    pwm.ChangeDutyCycle(closed_pos)
+    time.sleep(interval)
+    pwm.ChangeDutyCycle(closed_pos)
+    time.sleep(interval)
+    door_state = DoorStates.Closed
+    pwm.stop()
+
+close_door()
+
+ser = serial.Serial(serial_port, serial_speed, timeout = 5)
 
 config = {}
 
@@ -60,7 +71,9 @@ def update_config():
     json_string = conn.getresponse()
     data = json.load(json_string)
     print json.dumps(data, separators=(',', ': '))
-    config['pets'] = data
+    for pet in data:
+        config[pet['dongle_id']] = pet
+    print config
 
 def config_worker():
     while True:
@@ -92,33 +105,26 @@ def send_stats():
 
     return
 
-def open_door(tag):
+def open_door(dispenser):
     global door_state
-    print "Open the door to " + str(tag) + ", my friend!"
+    print "Open the door " + str(dispenser) + ", my friend!"
     door_state = DoorStates.Opening
     cycle = 1
-    if tag == 194:
+    if dispenser == 1:
         cycle = aopen_pos
     else:
         cycle = bopen_pos
 
-    pwm.ChangeDutyCycle(tmp_pos)
+    pwm.start(tmp_pos)
     time.sleep(interval)
     pwm.ChangeDutyCycle(cycle)
     time.sleep(interval)
+    pwm.stop()
 
     door_state = DoorStates.Open
     send_stats()
     return
 
-def close_door():
-    global door_state
-    print "Close the door, my friend!"
-    door_state = DoorStates.Closing
-    pwm.ChangeDutyCycle(tmp_pos)
-    time.sleep(interval)
-    pwm.ChangeDutyCycle(closed_pos)
-    time.sleep(interval)
     door_state = DoorStates.Closed
     send_stats()
     return
@@ -171,12 +177,13 @@ def sensor_worker():
         checkdata = normalize(data1)
         logstring = "[" + str(door_state) + "] " + str(checkdata)
         # Print out the normalized data
-        print(logstring)
+        #print(logstring)
         if (checkdata > prox_threshold):
             if (door_state == DoorStates.Closed):
                 tag = read_tag()
                 if (tag):
-                    open_door(tag)
+                    if config[tag]:
+                        open_door(config[tag]['dispenser_id'])
         else:
             if (door_state == DoorStates.Open):
                 close_door()
