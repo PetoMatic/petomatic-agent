@@ -3,8 +3,13 @@ import time
 import usb.core
 import usb.util
 import threading
+import json
+import httplib
 
 usbip_server = "10.0.5.1"
+stat_host = "10.0.5.19"
+stat_port = "8080"
+
 prox_threshold = 600
 
 usleep = lambda x: time.sleep(x/1000000.0)
@@ -19,7 +24,23 @@ def normalize(value):
     return int(norm_value)
 
 def send_stats():
-    # XXX Something
+    event = {}
+
+    if (door_state == DoorStates.Open):
+        event['event'] = 'doorOpened'
+    else:
+        event['event'] = 'doorClosed'
+
+    event['timestamp'] = time.time()
+
+    json_string = json.dumps(event, indent = 4)
+
+    conn = httplib.HTTPConnection(stat_host, port=stat_port, timeout=10)
+    conn.request(method = "POST",
+                    url = "/event",
+                    body = json_string)
+    print conn.getresponse()
+
     return
 
 def open_door():
