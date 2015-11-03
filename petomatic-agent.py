@@ -14,7 +14,8 @@ stat_port = "8080"
 serial_port = "/dev/ttyACM0"
 serial_speed = 9600
 
-prox_threshold = 600
+#prox_threshold = 600
+prox_threshold = 280
 
 usleep = lambda x: time.sleep(x/1000000.0)
 
@@ -23,16 +24,43 @@ class DoorStates:
 
 door_state = DoorStates.Closed
 
+tmp_pos = 10.0
+closed_pos = 4.5
+aopen_pos = 8.0
+bopen_pos = 1.0
+interval = 0.5
+
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(18, GPIO.OUT)
 pwm = GPIO.PWM(18, 100)
-pwm.start(0)
+pwm.start(tmp_pos)
+time.sleep(interval)
+pwm.ChangeDutyCycle(closed_pos)
+time.sleep(interval)
 
 ser = serial.Serial(serial_port, serial_speed)
+
+config = {}
 
 def normalize(value):
     norm_value = value
     return int(norm_value)
+
+
+def update_config():
+    global config
+    config = {}
+
+    conn = httplib.HTTPConnection(stat_host, port=stat_port, timeout=10)
+    conn.request(method = "GET",
+                    url = "/config")
+    json_string = conn.getresponse()
+    print(json_string)
+    data = json.load(json_string)
+    pets = {}
+    for pet in data['pets']:
+        pets[pet] = data[pet]
+    config['pets'] = pets
 
 def send_stats():
     event = {}
@@ -59,11 +87,21 @@ def send_stats():
 
     return
 
-def open_door():
+def open_door(tag):
     global door_state
-    print "Open the door, my friend!"
+    print "Open the door to " + str(tag) + ", my friend!"
     door_state = DoorStates.Opening
-    pwm.ChangeDutyCycle(7)
+    cycle = 1
+    if tag == 194:
+        cycle = aopen_pos
+    else:
+        cycle = bopen_pos
+
+    pwm.ChangeDutyCycle(tmp_pos)
+    time.sleep(interval)
+    pwm.ChangeDutyCycle(cycle)
+    time.sleep(interval)
+
     door_state = DoorStates.Open
     send_stats()
     return
@@ -72,7 +110,10 @@ def close_door():
     global door_state
     print "Close the door, my friend!"
     door_state = DoorStates.Closing
-    pwm.ChangeDutyCycle(1)
+    pwm.ChangeDutyCycle(tmp_pos)
+    time.sleep(interval)
+    pwm.ChangeDutyCycle(closed_pos)
+    time.sleep(interval)
     door_state = DoorStates.Closed
     send_stats()
     return
@@ -87,6 +128,17 @@ def read_weight():
         out += ser.read(1)
     print out
     return int(out[:-5])
+
+def read_tag():
+    print "Writing to Arduino"
+    ser.write('t\r\n')
+    time.sleep(1)
+    print "Writing to Arduino"
+    out = ""
+    while ser.inWaiting() > 0:
+        out += ser.read(1)
+    print "(" + out + ")"
+    return int(out)
 
 def sensor_worker():
     print "Testing IR sensor"
@@ -114,11 +166,8 @@ def sensor_worker():
         print(logstring)
         if (checkdata > prox_threshold):
             if (door_state == DoorStates.Closed):
-                #ser.write('t\r\n')
-                #resp = ser.readline()
-                # XXX check who's trying to open
-                #print resp
-                open_door()
+                tag = read_tag()
+                open_door(tag)
         else:
             if (door_state == DoorStates.Open):
                 close_door()
