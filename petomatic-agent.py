@@ -63,7 +63,7 @@ def open_door():
     global door_state
     print "Open the door, my friend!"
     door_state = DoorStates.Opening
-    pwm.ChangeDutyCycle(40)
+    pwm.ChangeDutyCycle(7)
     door_state = DoorStates.Open
     send_stats()
     return
